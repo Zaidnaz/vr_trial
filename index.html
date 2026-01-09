@@ -1,69 +1,108 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <title>Cyberpunk VR Shooter</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-environment-component@1.3.3/dist/aframe-environment-component.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
   </head>
   <body>
     <script>
-      // --- SHOOTER LOGIC ---
+      // --- SHOOTER LOGIC (Works for Mouse AND VR Controller) ---
       AFRAME.registerComponent('shooter', {
         init: function () {
-          window.addEventListener('click', () => {
-            // 1. Create a new ball
+          // Listen for Desktop Click OR VR Trigger
+          let shoot = () => {
+            this.fireBullet();
+          };
+          
+          this.el.addEventListener('click', shoot);       // Desktop Mouse
+          this.el.addEventListener('triggerdown', shoot); // VR Controller
+        },
+
+        fireBullet: function() {
+            // 1. Play Sound
+            const sound = document.querySelector('#laserSound');
+            if (sound) { sound.currentTime = 0; sound.play(); }
+
+            // 2. Create Bullet
             let ball = document.createElement('a-sphere');
             ball.setAttribute('position', this.el.object3D.position);
-            ball.setAttribute('radius', '0.2');
-            ball.setAttribute('color', '#FFFF00');
-            ball.setAttribute('dynamic-body', 'shape: sphere; mass: 5'); // Make it heavy
+            ball.setAttribute('radius', '0.15');
+            ball.setAttribute('color', '#00FF00'); // Neon Green
+            ball.setAttribute('emissive', '#00FF00'); // Glow effect
+            ball.setAttribute('dynamic-body', 'shape: sphere; mass: 2');
             
-            // 2. Calculate shooting direction (where you are looking)
+            // 3. Aim
             let direction = new THREE.Vector3();
             this.el.object3D.getWorldDirection(direction);
-            direction.multiplyScalar(-20); // Speed of the ball (negative because A-Frame camera looks down -Z)
+            direction.multiplyScalar(-25); // Faster bullet
 
-            // 3. Apply velocity
+            // 4. Fire
             ball.setAttribute('velocity', `${direction.x} ${direction.y} ${direction.z}`);
-
-            // 4. Add to scene
             this.el.sceneEl.appendChild(ball);
 
-            // 5. Clean up ball after 5 seconds so browser doesn't crash
-            setTimeout(() => {
-              ball.parentNode.removeChild(ball);
-            }, 5000);
-          });
+            // 5. Cleanup
+            setTimeout(() => { ball.parentNode.removeChild(ball); }, 3000);
+        }
+      });
+
+      // --- KEYBOARD LOOK (For Desktop) ---
+      AFRAME.registerComponent('keyboard-look', {
+        init: function () {
+          this.keys = {};
+          window.addEventListener('keydown', (e) => this.keys[e.code] = true);
+          window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+        },
+        tick: function (time, delta) {
+          const speed = 0.002 * delta; 
+          const rotation = this.el.object3D.rotation;
+          if (this.keys.ArrowLeft) rotation.y += speed;
+          if (this.keys.ArrowRight) rotation.y -= speed;
+          if (this.keys.ArrowUp) rotation.x += speed;
+          if (this.keys.ArrowDown) rotation.x -= speed;
         }
       });
     </script>
 
     <a-scene physics="gravity: -9.8; debug: false">
       
-      <a-entity environment="preset: volcano; ground: flat"></a-entity>
+      <a-assets>
+        <audio id="laserSound" src="https://cdn.aframe.io/360-image-gallery-boilerplate/audio/click.mp3" preload="auto"></audio>
+      </a-assets>
 
+      <a-entity environment="preset: tron; grid: 1x1; groundColor: #222; skyType: atmosphere"></a-entity>
       <a-plane static-body rotation="-90 0 0" scale="100 100 1" visible="false"></a-plane>
 
-      <a-box position="-1 0.5 -5" color="red" dynamic-body></a-box>
-      <a-box position="0 0.5 -5" color="orange" dynamic-body></a-box>
-      <a-box position="1 0.5 -5" color="yellow" dynamic-body></a-box>
-      
-      <a-box position="-0.5 1.5 -5" color="green" dynamic-body></a-box>
-      <a-box position="0.5 1.5 -5" color="blue" dynamic-body></a-box>
-      
-      <a-box position="0 2.5 -5" color="purple" dynamic-body></a-box>
+      <a-sphere position="0 5 -8" radius="1" color="#FF0055" 
+                emissive="#FF0055" dynamic-body
+                animation="property: position; to: 5 5 -8; dir: alternate; dur: 2000; loop: true">
+      </a-sphere>
 
-      <a-cylinder position="4 1 -6" height="2" radius="0.5" color="#333" dynamic-body></a-cylinder>
+      <a-box position="0 0.5 -5" color="#00AABB" dynamic-body></a-box>
+      <a-box position="0 1.5 -5" color="#00AABB" dynamic-body></a-box>
+      <a-box position="0 2.5 -5" color="#00AABB" dynamic-body></a-box>
+      <a-box position="-1 0.5 -5" color="#AA00BB" dynamic-body></a-box>
+      <a-box position="1 0.5 -5" color="#AA00BB" dynamic-body></a-box>
 
       <a-entity id="rig" movement-controls position="0 0 0">
+        
         <a-entity camera 
                   look-controls 
                   wasd-controls="acceleration: 150" 
-                  position="0 1.6 0"
-                  shooter> <a-cursor color="red" scale="0.5 0.5 0.5"></a-cursor>
+                  keyboard-look
+                  shooter
+                  position="0 1.6 0">
             
-            <a-box position="0.2 -0.3 -0.5" scale="0.1 0.1 0.5" color="gray"></a-box>
+            <a-cursor color="#00FF00" scale="0.5 0.5 0.5"></a-cursor>
+            
+            <a-box position="0.2 -0.2 -0.4" scale="0.1 0.1 0.6" color="#333"></a-box>
+            <a-box position="0.2 -0.2 -0.7" scale="0.12 0.12 0.1" color="#00FF00" emissive="#00FF00"></a-box>
         </a-entity>
+
+        <a-entity laser-controls="hand: right" shooter></a-entity>
+        <a-entity laser-controls="hand: left"></a-entity>
+
       </a-entity>
       
     </a-scene>
